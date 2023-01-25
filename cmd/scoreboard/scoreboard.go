@@ -25,13 +25,21 @@ var (
 			BorderForeground(lipgloss.Color("#b141f1"))
 )
 
+type gameState uint8
+
+const (
+	inProgress gameState = iota
+	complete
+)
+
 type ScoreboardModel struct {
-	table     table.Model
-	players   *[]scoring.Player
-	cursor    int
-	roundCard string
-	round     int
-	textInput textinput.Model
+	state     gameState         `json:"-"`
+	table     table.Model       `json:"-"`
+	Players   *[]scoring.Player `json:"players"`
+	cursor    int               `json:"-"`
+	RoundCard string            `json:"roundCard"`
+	Round     int               `json:"round"`
+	textInput textinput.Model   `json:"-"`
 }
 
 func NewScoreboardModel(players *[]scoring.Player) ScoreboardModel {
@@ -75,10 +83,11 @@ func NewScoreboardModel(players *[]scoring.Player) ScoreboardModel {
 	ti.Focus()
 
 	return ScoreboardModel{
+		state:     inProgress,
 		table:     t,
-		players:   players,
+		Players:   players,
 		textInput: ti,
-		roundCard: scoring.Cards[0],
+		RoundCard: scoring.Cards[0],
 	}
 }
 
@@ -91,13 +100,13 @@ func (m ScoreboardModel) View() string {
 
 	uploadView := "Update scores:\n\n"
 
-	for i, player := range *m.players {
+	for i, player := range *m.Players {
 		cursor := " "
 		if m.cursor == i {
 			cursor = ">"
 		}
 
-		uploadView += fmt.Sprintf("%s %s - %d\n", cursor, player.Name, player.Scores[m.roundCard])
+		uploadView += fmt.Sprintf("%s %s - %d\n", cursor, player.Name, player.Scores[m.RoundCard])
 	}
 
 	infoView := m.makeInfoView()
@@ -106,7 +115,7 @@ func (m ScoreboardModel) View() string {
 
 	v += lipgloss.JoinHorizontal(lipgloss.Left, baseStyle.Render(m.table.View()), "    ", uploadView)
 
-	help := helpStyle.Render("Use the arrow keys to navigate, ctrl+c or q to quit,\nEnter to add score, n to move to the next round")
+	help := helpStyle.Render("Use the arrow keys to navigate, ctrl+c to quit,\nEnter to add score, n to move to the next round")
 
 	return lipgloss.JoinVertical(lipgloss.Left, v, help)
 }
@@ -117,7 +126,7 @@ func (m ScoreboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c":
 			return m, tea.Quit
 		case "enter":
 			score, err := strconv.Atoi(m.textInput.Value())
@@ -125,7 +134,9 @@ func (m ScoreboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.textInput.Err = err
 				return m, nil
 			}
-			(*m.players)[m.cursor].AddScore(score, m.roundCard)
+			if m.state == inProgress {
+				(*m.Players)[m.cursor].AddScore(score, m.RoundCard)
+			}
 			m.textInput.Reset()
 		case "1", "2", "3", "4", "5", "6", "7", "8", "9", "0":
 			m.textInput, cmd = m.textInput.Update(msg)
@@ -135,19 +146,27 @@ func (m ScoreboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor--
 			}
 		case "down":
-			if m.cursor < len(*m.players)-1 {
+			if m.cursor < len(*m.Players)-1 {
 				m.cursor++
 			}
 		case "n":
-			if m.round == len(scoring.Cards)-1 {
-				return m, tea.Quit
+			if m.Round == len(scoring.Cards)-1 && m.state == inProgress {
+				// get stuck in this state when the game is over to view table
+				rows := m.refreshTableRows()
+				m.table.SetRows(rows)
+				m.table.MoveDown(1)
+				m.state = complete
+				saveGameState(m)
+				return m, nil
 			}
-			rows := m.refreshTableRows()
-			m.table.SetRows(rows)
-			m.round++
-			m.roundCard = scoring.Cards[m.round]
-			m.table.MoveDown(1)
-			m.cursor = 0
+			if m.state == inProgress {
+				rows := m.refreshTableRows()
+				m.table.SetRows(rows)
+				m.Round++
+				m.RoundCard = scoring.Cards[m.Round]
+				m.table.MoveDown(1)
+				m.cursor = 0
+			}
 		}
 	}
 	return m, tea.Batch(cmds...)
@@ -158,7 +177,7 @@ func (m ScoreboardModel) refreshTableRows() []table.Row {
 
 	for _, card := range scoring.Cards {
 		row := table.Row{card}
-		for _, player := range *m.players {
+		for _, player := range *m.Players {
 			row = append(row, strconv.Itoa(player.Scores[card]))
 		}
 		rows = append(rows, row)
@@ -166,10 +185,10 @@ func (m ScoreboardModel) refreshTableRows() []table.Row {
 
 	totalRow := table.Row{"Total"}
 	winRow := table.Row{"Wins"}
-	for _, player := range *m.players {
+	for _, player := range *m.Players {
 		totalRow = append(totalRow, strconv.Itoa(player.Score))
 		// not handling error right now
-		wins, _ := player.CountWins(m.round)
+		wins, _ := player.CountWins(m.Round)
 		winRow = append(winRow, strconv.Itoa(wins))
 	}
 
@@ -181,8 +200,9 @@ func (m ScoreboardModel) refreshTableRows() []table.Row {
 func (m ScoreboardModel) makeInfoView() string {
 	var iv string
 
-	iv += fmt.Sprintf("Current card: %s\n", m.roundCard)
-	iv += fmt.Sprintf("Souflé: %s\n", (*m.players)[m.round%len(*m.players)].Name)
+	iv += fmt.Sprintf("Current card: %s\n", m.RoundCard)
+	iv += fmt.Sprintf("Souflé: %s\n", (*m.Players)[m.Round%len(*m.Players)].Name)
+	iv += fmt.Sprintf("Round: %d\n", m.Round)
 
 	return infoStyle.Render(iv)
 }

@@ -3,10 +3,9 @@ package scoring
 import "errors"
 
 type Player struct {
-	Name   string
-	Score  int
-	Wins   int
-	Scores map[string]int
+	Name   string         `json:"name"`
+	Score  int            `json:"score"`
+	Scores map[string]int `json:"scores"`
 }
 
 var Cards = []string{"A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"}
