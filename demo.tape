@@ -6,7 +6,7 @@ Set Height 600
 Set FontFamily "Fira Code"
 Set TypingSpeed 500ms
 
-Type@100ms "go run cmd/scoreboard/*.go"
+Type@100ms "go run cmd/scoreboard/*.go ben joe tina"
 
 Enter
 
@@ -38,7 +38,6 @@ Enter
 
 Down
 
-Sleep 250ms
 
 Sleep 500ms
 Type "69"

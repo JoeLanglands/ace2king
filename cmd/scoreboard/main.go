@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"math/rand"
+	"time"
 
 	"github.com/JoeLanglands/ace2king/pkg/scoring"
 	tea "github.com/charmbracelet/bubbletea"
@@ -20,10 +22,13 @@ func parsePlayers(names []string) []scoring.Player {
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
+
 	flag.Parse()
 	names := flag.Args()
 
 	players := parsePlayers(names)
+	shufflePlayers(&players)
 
 	f, err := tea.LogToFile("debug.log", "debug > ")
 	if err != nil {

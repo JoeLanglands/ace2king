@@ -12,11 +12,14 @@ import (
 )
 
 var (
-	modelStyle = lipgloss.NewStyle().
+	uploadStyle = lipgloss.NewStyle().
 			Align(lipgloss.Center, lipgloss.Center).
 			BorderStyle(lipgloss.HiddenBorder())
 	helpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-
+	infoStyle = lipgloss.NewStyle().
+			Align(lipgloss.Left, lipgloss.Center).
+			BorderStyle(lipgloss.RoundedBorder()).
+			Foreground(lipgloss.Color("#58c7e0"))
 	baseStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("#b141f1"))
@@ -97,7 +100,9 @@ func (m ScoreboardModel) View() string {
 		uploadView += fmt.Sprintf("%s %s - %d\n", cursor, player.Name, player.Scores[m.roundCard])
 	}
 
-	uploadView = lipgloss.JoinVertical(lipgloss.Left, modelStyle.Render(uploadView), m.textInput.View())
+	infoView := m.makeInfoView()
+
+	uploadView = lipgloss.JoinVertical(lipgloss.Left, infoView, uploadStyle.Render(uploadView), m.textInput.View())
 
 	v += lipgloss.JoinHorizontal(lipgloss.Left, baseStyle.Render(m.table.View()), "    ", uploadView)
 
@@ -139,11 +144,9 @@ func (m ScoreboardModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			rows := m.refreshTableRows()
 			m.table.SetRows(rows)
-			m.table.MoveDown(1)
-			_, cmd := m.table.Update(nil)
 			m.round++
 			m.roundCard = scoring.Cards[m.round]
-			cmds = append(cmds, cmd)
+			m.table.MoveDown(1)
 			m.cursor = 0
 		}
 	}
@@ -165,10 +168,21 @@ func (m ScoreboardModel) refreshTableRows() []table.Row {
 	winRow := table.Row{"Wins"}
 	for _, player := range *m.players {
 		totalRow = append(totalRow, strconv.Itoa(player.Score))
-		winRow = append(winRow, strconv.Itoa(player.Wins))
+		// not handling error right now
+		wins, _ := player.CountWins(m.round)
+		winRow = append(winRow, strconv.Itoa(wins))
 	}
 
 	rows = append(rows, totalRow, winRow)
 
 	return rows
+}
+
+func (m ScoreboardModel) makeInfoView() string {
+	var iv string
+
+	iv += fmt.Sprintf("Current card: %s\n", m.roundCard)
+	iv += fmt.Sprintf("Souflé: %s\n", (*m.players)[m.round%len(*m.players)].Name)
+
+	return infoStyle.Render(iv)
 }

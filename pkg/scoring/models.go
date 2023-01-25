@@ -1,5 +1,7 @@
 package scoring
 
+import "errors"
+
 type Player struct {
 	Name   string
 	Score  int
@@ -13,21 +15,28 @@ func NewPlayer(name string) Player {
 	return Player{
 		Name:   name,
 		Score:  0,
-		Wins:   0,
 		Scores: make(map[string]int, len(Cards)),
 	}
 }
-
 func (p *Player) AddScore(score int, card string) {
 	p.Scores[card] = score
 	var scoreSum int
-	var winSum int
 	for _, s := range p.Scores {
 		scoreSum += s
-		if s <= 0 {
+	}
+	p.Score = scoreSum
+}
+
+// CountWins returns the number of rounds won by the player up to cardIdx.
+func (p *Player) CountWins(cardIdx int) (int, error) {
+	var winSum int
+	if cardIdx >= len(Cards) || cardIdx < 0 {
+		return 0, errors.New("cardIdx out of range")
+	}
+	for _, card := range Cards[:cardIdx+1] {
+		if p.Scores[card] == 0 {
 			winSum++
 		}
 	}
-	p.Score = scoreSum
-	p.Wins = winSum
+	return winSum, nil
 }
